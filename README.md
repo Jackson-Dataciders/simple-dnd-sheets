@@ -10,7 +10,7 @@ Characters are saved in your browser's local storage.
 - HP in a blank broken heart for pencil (current left of the crack, max right), Armor Class, empty armor square for printed armor cards
 - **Arcana**: mana pool that replaces cantrips and spell slots — circles on the sheet for paper chips.
   Spells cost 1–3 arcana; each extra arcana adds the spell's multiplier dice (e.g. `2d6` + `1d6` per extra).
-- Up to 8 basic attacks (weapon or spell), each with a damage type icon
+- Up to 8 basic attacks (weapon or spell), each with a damage type icon and an optional short effect line
   (bludgeoning, piercing, nature, fire, water, light, dark, mental); the inventory shrinks to keep one page.
   Attack and spell ability cards use the same damage types and icons.
 - Empty inventory lines for pencil notes

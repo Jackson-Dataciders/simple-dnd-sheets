@@ -8,7 +8,7 @@ const ALIGN = ['lg', 'ng', 'cg', 'ln', 'n', 'cn', 'le', 'ne', 'ce'];
 const USES = ['always', 'short', 'long'];
 const OTHER = '__other';
 const ARCANA = '◆';
-const MAX_ATTACKS = 8; // more would not fit on one A4 page
+const MAX_ATTACKS = 8; // hard cap; sheetLayout() decides what still fits on one A4 page
 /* Damage types for basic attacks: badge color + emoji for the dropdown (sheet uses drawn icons). */
 const DTYPES = {
   bludgeoning: { color: '#6b625a', emoji: '🔨' }, piercing: { color: '#3f5f80', emoji: '🏹' },
@@ -37,7 +37,8 @@ const STRINGS = {
     noAbilities: 'No abilities yet.', perArcana: 'per extra',
     hpHint: 'Hit points stay blank on the sheet and are written in pencil (they change during play and on level-up).',
     level: 'Level', levelHint: 'Shown as stars on the sheet. Empty stars can be filled in with pencil on level-up.',
-    addAttack: '+ Add attack', maxAttacks: 'Maximum reached — more attacks would not fit on one page.', dtype: 'Damage type',
+    addAttack: '+ Add attack', maxAttacks: 'The page is full — no room for another attack.', atkEffect: 'Effect (short)',
+    tooLong: 'Too much for one page — shorten or remove an effect or an attack.', dtype: 'Damage type',
     dtypeL: { bludgeoning: 'Bludgeoning', piercing: 'Piercing', nature: 'Nature', fire: 'Fire', water: 'Water', light: 'Light', dark: 'Dark', mental: 'Mental' },
     speciesL: { human: 'Human', elf: 'Elf', dwarf: 'Dwarf', halfling: 'Halfling', gnome: 'Gnome', halfElf: 'Half-Elf', halfOrc: 'Half-Orc', tiefling: 'Tiefling', dragonborn: 'Dragonborn' },
     classL: { barbarian: 'Barbarian', bard: 'Bard', cleric: 'Cleric', druid: 'Druid', fighter: 'Fighter', monk: 'Monk', paladin: 'Paladin', ranger: 'Ranger', rogue: 'Rogue', sorcerer: 'Sorcerer', warlock: 'Warlock', wizard: 'Wizard' },
@@ -66,7 +67,8 @@ const STRINGS = {
     noAbilities: 'Noch keine Fähigkeiten.', perArcana: 'pro extra',
     hpHint: 'Trefferpunkte bleiben auf dem Bogen leer und werden mit Bleistift eingetragen (sie ändern sich im Spiel und beim Stufenaufstieg).',
     level: 'Stufe', levelHint: 'Wird als Sterne auf dem Bogen gezeigt. Leere Sterne können beim Stufenaufstieg mit Bleistift ausgemalt werden.',
-    addAttack: '+ Angriff hinzufügen', maxAttacks: 'Maximum erreicht — mehr Angriffe passen nicht auf eine Seite.', dtype: 'Schadensart',
+    addAttack: '+ Angriff hinzufügen', maxAttacks: 'Die Seite ist voll — kein Platz für einen weiteren Angriff.', atkEffect: 'Effekt (kurz)',
+    tooLong: 'Zu viel für eine Seite — kürze oder entferne einen Effekt oder einen Angriff.', dtype: 'Schadensart',
     dtypeL: { bludgeoning: 'Wucht', piercing: 'Stich', nature: 'Natur', fire: 'Feuer', water: 'Wasser', light: 'Licht', dark: 'Dunkelheit', mental: 'Psychisch' },
     speciesL: { human: 'Mensch', elf: 'Elf', dwarf: 'Zwerg', halfling: 'Halbling', gnome: 'Gnom', halfElf: 'Halbelf', halfOrc: 'Halbork', tiefling: 'Tiefling', dragonborn: 'Drachenblütiger' },
     classL: { barbarian: 'Barbar', bard: 'Barde', cleric: 'Kleriker', druid: 'Druide', fighter: 'Kämpfer', monk: 'Mönch', paladin: 'Paladin', ranger: 'Waldläufer', rogue: 'Schurke', sorcerer: 'Zauberer', warlock: 'Hexenmeister', wizard: 'Magier' },
@@ -101,7 +103,7 @@ if (!STRINGS[state.lang]) state.lang = 'en';
 if (!THEMES[state.theme]) state.theme = 'default';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-const newAttack = () => ({ kind: 'weapon', name: '', range: '', dmg: '', type: 'bludgeoning', cost: 1, mult: '' });
+const newAttack = () => ({ kind: 'weapon', name: '', range: '', dmg: '', type: 'bludgeoning', cost: 1, mult: '', effect: '' });
 function newChar() {
   return {
     id: uid(), name: '', species: 'human', speciesOther: '', cls: 'fighter', clsOther: '', alignment: 'n', alignmentOther: '',
@@ -359,11 +361,15 @@ function drawIcon(type) {
   }
   return (_icons[type] = cv.toDataURL('image/png'));
 }
-/** Sheet layout for n attacks: row heights in mm and how many inventory lines still fit on one page. */
-function sheetLayout(n) {
-  const head = 7, rowH = 9, gap = 1.5, budget = 130; // attacks + inventory share 130 mm
-  const att = n ? head + n * (rowH + gap) + 3 : 0;
-  return { head, rowH, gap, invLines: Math.max(3, Math.floor((budget - att - 8) / 8)) };
+/** Sheet layout for the attack list: row heights in mm and how many inventory lines still fit on one page.
+ *  Attacks + inventory share 134 mm; the inventory keeps at least 3 lines. */
+const hasEffect = a => !!String(a.effect || '').trim();
+function sheetLayout(attacks) {
+  const head = 7, rowH = 8.5, effH = 5, gap = 1.5, budget = 134, minLines = 3;
+  const height = list => list.length ? head + list.reduce((h, a) => h + gap + rowH + (hasEffect(a) ? effH : 0), 0) + 3 : 0;
+  const free = l => Math.floor((budget - height(l) - 8) / 8);
+  return { head, rowH, effH, gap, invLines: Math.max(minLines, free(attacks)), fits: free(attacks) >= minLines,
+    canAdd: free([...attacks, {}]) >= minLines };
 }
 
 /* ---------- UI rendering ---------- */
@@ -414,6 +420,7 @@ function renderForm() {
       ${input(t('name'), `attacks.${i}.name`, a.name, { max: 28 })}
       ${input(t('range'), `attacks.${i}.range`, a.range, { max: 14 })}
       ${input(t('damage'), `attacks.${i}.dmg`, a.dmg, { max: 14 })}
+      ${input(t('atkEffect'), `attacks.${i}.effect`, a.effect, { max: 100, cls: 'wide' })}
       ${dtypeSelect(`attacks.${i}.type`, a.type)}
       ${a.kind === 'spell' ? select(t('cost'), `attacks.${i}.cost`, costOpts(a.cost)) + input(t('mult'), `attacks.${i}.mult`, a.mult, { max: 8 }) : ''}
     </div></div>`).join('');
@@ -470,7 +477,8 @@ function renderForm() {
     ${input(t('arcanaMax'), 'arcana', c.arcana, { type: 'number', maxN: 12 })}
   </div><p class="hint" style="margin-top:6px">${esc(t('hpHint'))}<br>${esc(t('arcanaHint'))}</p></fieldset>
   <fieldset><legend>${esc(t('attacks'))}</legend>${attacks}
-    ${c.attacks.length < MAX_ATTACKS ? `<button type="button" class="btn" data-act="addatk">${esc(t('addAttack'))}</button>` : `<p class="hint">${esc(t('maxAttacks'))}</p>`}</fieldset>
+    <p class="hint warn" id="fitWarn"${sheetLayout(c.attacks).fits ? ' hidden' : ''}>${esc(t('tooLong'))}</p>
+    ${c.attacks.length < MAX_ATTACKS && sheetLayout(c.attacks).canAdd ? `<button type="button" class="btn" data-act="addatk">${esc(t('addAttack'))}</button>` : `<p class="hint">${esc(t('maxAttacks'))}</p>`}</fieldset>
   <fieldset><legend>${esc(t('abilities'))}</legend><p class="hint">${esc(t('abilitiesHint'))}</p>${abilities}
     <button type="button" class="btn" data-act="addab">${esc(t('addAbility'))}</button></fieldset>`;
 }
@@ -479,10 +487,11 @@ function renderPreview() {
   const c = cur(), el = $('#sheet');
   if (!c) { el.innerHTML = ''; return; }
   el.style.backgroundImage = `url(${frameCache()})`;
-  const L = sheetLayout(c.attacks.length);
-  const rows = c.attacks.map(a => `<tr class="gap"><td colspan="5"></td></tr><tr class="atk">
-    <td class="ic"><img alt="" src="${drawIcon(a.type)}"></td><td><b>${esc(a.name)}</b></td><td>${esc(a.range)}</td>
-    <td>${esc(a.dmg)} <i>${esc(t('dtypeL')[a.type] || '')}</i></td><td>${esc(attackArcana(a))}</td></tr>`).join('');
+  const L = sheetLayout(c.attacks);
+  const rows = c.attacks.map(a => `<tr class="gap"><td colspan="5"></td></tr><tr class="atk${hasEffect(a) ? ' has-eff' : ''}">
+    <td class="ic"${hasEffect(a) ? ' rowspan="2"' : ''}><img alt="" src="${drawIcon(a.type)}"></td><td><b>${esc(a.name)}</b></td><td>${esc(a.range)}</td>
+    <td>${esc(a.dmg)} <i>${esc(t('dtypeL')[a.type] || '')}</i></td><td>${esc(attackArcana(a))}</td></tr>
+    ${hasEffect(a) ? `<tr class="eff"><td colspan="4">${esc(a.effect)}</td></tr>` : ''}`).join('');
   el.innerHTML = `
     <div class="sh-head">
       <div class="sh-portrait" style="background-image:${c.img ? `url(${c.img})` : 'none'}"></div>
@@ -546,6 +555,11 @@ form.addEventListener('input', e => {
     el.closest('.ability').querySelector('.grow').textContent = a.name || t('typeL')[a.type];
   }
   if (p === 'name' || p.endsWith('Other')) renderList();
+  if (/^attacks\.\d+\.effect$/.test(p)) {
+    const L = sheetLayout(c.attacks), w = $('#fitWarn');
+    if (w) w.hidden = L.fits;
+    if (L.canAdd !== !!form.querySelector('[data-act="addatk"]')) { renderForm(); const f = form.querySelector(`[data-p="${p}"]`); f?.focus(); f?.setSelectionRange(f.value.length, f.value.length); }
+  }
   renderPreview();
 });
 form.addEventListener('change', async e => {
@@ -565,7 +579,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); const c = cur();
   if (b && c) {
     const i = Number(b.dataset.i), act = b.dataset.act;
-    if (act === 'addatk' && c.attacks.length < MAX_ATTACKS) { c.attacks.push(newAttack()); save(); renderForm(); renderPreview(); }
+    if (act === 'addatk' && c.attacks.length < MAX_ATTACKS && sheetLayout(c.attacks).canAdd) { c.attacks.push(newAttack()); save(); renderForm(); renderPreview(); }
     if (act === 'rmatk' && confirm(t('remove') + '?')) { c.attacks.splice(i, 1); save(); renderForm(); renderPreview(); }
     if (act === 'addab') { c.abilities.push(newAbility()); save(); renderAll(); }
     if (act === 'rmab' && confirm(t('remove') + '?')) { c.abilities.splice(i, 1); save(); renderAll(); }
@@ -626,6 +640,7 @@ function kit() {
     children: [].concat(children), width: { size: tw(wmm), type: D.WidthType.DXA }, borders: cellB(o.borders),
     verticalAlign: o.v ?? D.VerticalAlign.CENTER, margins: o.margins ?? { top: 0, bottom: 0, left: tw(1.5), right: tw(1.5) },
     shading: o.fill ? { type: D.ShadingType.CLEAR, color: 'auto', fill: hex(o.fill) } : undefined,
+    columnSpan: o.span, verticalMerge: o.vmerge,
   });
   const row = (cells, hmm) => new D.TableRow({ children: cells, height: { value: tw(hmm), rule: D.HeightRule.EXACT }, cantSplit: true });
   const table = (rows, colsMm, o = {}) => new D.Table({
@@ -681,28 +696,37 @@ async function exportSheet(c) {
   }), 24)], Array(6).fill(sw));
 
   // Attacks: each one in its own framed row with a damage-type icon, separated by small gaps
-  const L = sheetLayout(c.attacks.length);
+  const L = sheetLayout(c.attacks);
   const cols = [11, 55, 29, 44, 43];
   const icons = {};
   for (const a of c.attacks) icons[a.type] ??= await pngInfo(drawIcon(a.type));
   const hc = (txt, w) => cell(para(run(txt, { size: 18, bold: true, color: 'FFFFFF' })), w, { fill: T.accent });
   const ab = line(T.border, 8);
-  const edge = (first, last) => ({ top: ab, bottom: ab, ...(first ? { left: ab } : {}), ...(last ? { right: ab } : {}) });
+  const edge = (first, last, bottom = true) => ({ top: ab, ...(bottom ? { bottom: ab } : {}), ...(first ? { left: ab } : {}), ...(last ? { right: ab } : {}) });
   const attacks = c.attacks.length ? table([
     new D.TableRow({ children: [new D.TableCell({ children: [para(run(t('attacks'), { size: 18, bold: true, color: 'FFFFFF' }))], columnSpan: 2,
       width: { size: tw(cols[0] + cols[1]), type: D.WidthType.DXA }, shading: { type: D.ShadingType.CLEAR, color: 'auto', fill: hex(T.accent) },
       verticalAlign: D.VerticalAlign.CENTER, margins: { left: tw(1.5), right: tw(1.5) }, borders: { top: K.NB, bottom: K.NB, left: K.NB, right: K.NB } }),
       hc(t('range'), cols[2]), hc(t('damage'), cols[3]), hc(t('arcana'), cols[4])], height: { value: tw(L.head), rule: D.HeightRule.EXACT } }),
-    ...c.attacks.flatMap(a => [
-      row(cols.map(w => cell(para(run('', { size: 2 })), w)), L.gap),
-      row([
-        cell(para(image(icons[a.type], 6.5, 6.5), { alignment: center }), cols[0], { borders: edge(true, false), fill: T.soft, margins: { left: 0, right: 0, top: 0, bottom: 0 } }),
-        cell(para(run(a.name, { size: a.name.length > 22 ? 16 : 20, bold: true })), cols[1], { borders: edge() }),
-        cell(para(run(a.range)), cols[2], { borders: edge() }),
-        cell(para([run(a.dmg, { bold: true }), run('  ' + (t('dtypeL')[a.type] || ''), { size: 16, italics: true, color: DTYPES[a.type]?.color.slice(1) })]), cols[3], { borders: edge() }),
-        cell(para(run(attackArcana(a), { color: hex(T.accent) })), cols[4], { borders: edge(false, true) }),
-      ], L.rowH),
-    ]),
+    ...c.attacks.flatMap(a => {
+      const eff = hasEffect(a), noM = { left: 0, right: 0, top: 0, bottom: 0 };
+      const iconCell = { borders: { top: ab, left: ab, ...(eff ? {} : { bottom: ab }) }, fill: T.soft, margins: noM, vmerge: eff ? D.VerticalMergeType.RESTART : undefined };
+      return [
+        row(cols.map(w => cell(para(run('', { size: 2 })), w)), L.gap),
+        row([
+          cell(para(image(icons[a.type], 6.5, 6.5), { alignment: center }), cols[0], iconCell),
+          cell(para(run(a.name, { size: a.name.length > 22 ? 16 : 20, bold: true })), cols[1], { borders: edge(false, false, !eff) }),
+          cell(para(run(a.range)), cols[2], { borders: edge(false, false, !eff) }),
+          cell(para([run(a.dmg, { bold: true }), run('  ' + (t('dtypeL')[a.type] || ''), { size: 16, italics: true, color: DTYPES[a.type]?.color.slice(1) })]), cols[3], { borders: edge(false, false, !eff) }),
+          cell(para(run(attackArcana(a), { color: hex(T.accent) })), cols[4], { borders: edge(false, true, !eff) }),
+        ], L.rowH),
+        ...(eff ? [row([
+          cell(para(run('')), cols[0], { borders: { left: ab, bottom: ab }, fill: T.soft, margins: noM, vmerge: D.VerticalMergeType.CONTINUE }),
+          cell(para(run(a.effect, { size: 15, italics: true })), cols[1] + cols[2] + cols[3] + cols[4],
+            { span: 4, borders: { bottom: ab, right: ab }, v: D.VerticalAlign.TOP }),
+        ], L.effH)] : []),
+      ];
+    }),
   ], cols) : null;
 
   const box = line(T.border, 6);
@@ -797,7 +821,7 @@ function guessDtype(txt) {
   return Object.keys(words).find(k => words[k].some(w => s.includes(w))) || 'bludgeoning';
 }
 // migrate characters saved by older versions
-state.chars.forEach(c => { c.attacks = (c.attacks || []).slice(0, MAX_ATTACKS); c.attacks.forEach(a => { if (!DTYPES[a.type]) a.type = 'bludgeoning'; }); delete c.hpCur; delete c.hpMax; if (![1, 2, 3].includes(c.level)) c.level = 1;
+state.chars.forEach(c => { c.attacks = (c.attacks || []).slice(0, MAX_ATTACKS); c.attacks.forEach(a => { if (!DTYPES[a.type]) a.type = 'bludgeoning'; a.effect ??= ''; }); delete c.hpCur; delete c.hpMax; if (![1, 2, 3].includes(c.level)) c.level = 1;
   (c.abilities || []).forEach(a => { if (!DTYPES[a.dmgType]) a.dmgType = guessDtype(a.dmgType); }); });
 if (!state.chars.length) addChar();
 if (!cur()) state.currentId = state.chars[0].id;

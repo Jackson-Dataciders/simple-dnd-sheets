@@ -92,9 +92,15 @@ legend { font-family: var(--font); color: var(--accent); font-weight: 700; paddi
   padding: 0 calc(var(--mm) * 2); white-space: nowrap; overflow: hidden; background: #fff8; }
 .sh-att tr.atk td:first-child { border-left: calc(var(--mm) * .4) solid var(--border); background: var(--soft); text-align: center; padding: 0; }
 .sh-att tr.atk td:last-child { border-right: calc(var(--mm) * .4) solid var(--border); color: var(--accent); }
+.sh-att tr.atk.has-eff td { border-bottom: 0; }
+.sh-att tr.eff td { height: calc(var(--mm) * 5); font-size: calc(var(--mm) * 2.65); font-style: italic; vertical-align: top; padding: 0 calc(var(--mm) * 2);
+  border-bottom: calc(var(--mm) * .4) solid var(--border); border-right: calc(var(--mm) * .4) solid var(--border); background: #fff8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-att td.ic { vertical-align: middle; }
+.sh-att tr.atk.has-eff td.ic { border-bottom: calc(var(--mm) * .4) solid var(--border); }
 .sh-att td.ic img { width: calc(var(--mm) * 6.5); height: calc(var(--mm) * 6.5); vertical-align: middle; }
 .sh-att i { font-size: calc(var(--mm) * 2.8); color: var(--muted); }
 .dicon { width: 22px; height: 22px; }
+.warn { color: #a01010; font-weight: 600; }
 .sh-inv { margin-top: calc(var(--mm) * 3); border: calc(var(--mm) * .3) solid var(--border); }
 .sh-inv h3 { background: var(--soft); font-size: calc(var(--mm) * 3.8); height: calc(var(--mm) * 8); line-height: calc(var(--mm) * 8); padding: 0 calc(var(--mm) * 2); }
 .sh-inv div { height: calc(var(--mm) * 8); border-bottom: calc(var(--mm) * .3) dotted var(--border); }
