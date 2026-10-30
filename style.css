@@ -57,8 +57,7 @@ legend { font-family: var(--font); color: var(--accent); font-weight: 700; paddi
 .mod { font-weight: 700; color: var(--accent); }
 .pic-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .pic { width: 64px; height: 64px; border-radius: 8px; background: var(--soft) center/cover; border: 1px solid var(--border); }
-.attack { border-top: 1px dashed var(--soft); padding-top: 8px; margin-top: 8px; }
-.attack:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+.attack { border: 1px solid var(--soft); border-radius: 8px; padding: 8px 10px 10px; margin-bottom: 10px; background: #fff; }
 .ability { border: 1px solid var(--soft); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px; margin-bottom: 10px; background: #fff; }
 .ability-head { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
 .ability-head .grow { flex: 1; font-family: var(--font); font-weight: 700; color: var(--accent); }
@@ -85,7 +84,14 @@ legend { font-family: var(--font); color: var(--accent); font-weight: 700; paddi
 .sh-vitals { display: block; width: 100%; margin-top: calc(var(--mm) * 3); }
 .sh-att { width: 100%; border-collapse: collapse; margin-top: calc(var(--mm) * 3); table-layout: fixed; }
 .sh-att th { background: var(--accent); color: #fff; text-align: left; height: calc(var(--mm) * 7); padding: 0 calc(var(--mm) * 2); font-size: calc(var(--mm) * 3.3); }
-.sh-att td { height: calc(var(--mm) * 8); border-bottom: calc(var(--mm) * .3) solid var(--soft); padding: 0 calc(var(--mm) * 2); white-space: nowrap; overflow: hidden; }
+.sh-att tr.gap td { height: calc(var(--mm) * 1.5); padding: 0; }
+.sh-att tr.atk td { height: calc(var(--mm) * 9); border-top: calc(var(--mm) * .4) solid var(--border); border-bottom: calc(var(--mm) * .4) solid var(--border);
+  padding: 0 calc(var(--mm) * 2); white-space: nowrap; overflow: hidden; background: #fff8; }
+.sh-att tr.atk td:first-child { border-left: calc(var(--mm) * .4) solid var(--border); background: var(--soft); text-align: center; padding: 0; }
+.sh-att tr.atk td:last-child { border-right: calc(var(--mm) * .4) solid var(--border); color: var(--accent); }
+.sh-att td.ic img { width: calc(var(--mm) * 6.5); height: calc(var(--mm) * 6.5); vertical-align: middle; }
+.sh-att i { font-size: calc(var(--mm) * 2.8); color: var(--muted); }
+.dicon { width: 22px; height: 22px; }
 .sh-inv { margin-top: calc(var(--mm) * 3); border: calc(var(--mm) * .3) solid var(--border); }
 .sh-inv h3 { background: var(--soft); font-size: calc(var(--mm) * 3.8); height: calc(var(--mm) * 8); line-height: calc(var(--mm) * 8); padding: 0 calc(var(--mm) * 2); }
 .sh-inv div { height: calc(var(--mm) * 8); border-bottom: calc(var(--mm) * .3) dotted var(--border); }

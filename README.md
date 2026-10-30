@@ -6,10 +6,12 @@ Characters are saved in your browser's local storage.
 ## Features
 - Name, species, class, alignment (dropdowns with standard values + free text), picture
 - The 6 ability scores with modifiers, one proficiency (rolls with that stat have advantage)
-- HP in a broken heart (current left of the crack, max right), Armor Class, empty armor square for printed armor cards
+- HP in a blank broken heart for pencil (current left of the crack, max right), Armor Class, empty armor square for printed armor cards
 - **Arcana**: mana pool that replaces cantrips and spell slots — circles on the sheet for paper chips.
   Spells cost 1–3 arcana; each extra arcana adds the spell's multiplier dice (e.g. `2d6` + `1d6` per extra).
-- 3 basic attacks (weapon or spell) and an empty inventory for pencil notes
+- Up to 8 basic attacks (weapon or spell), each with a damage type icon
+  (bludgeoning, piercing, nature, fire, water, light, dark, mental); the inventory shrinks to keep one page
+- Empty inventory lines for pencil notes
 - Additional abilities (passive / attack / spell) exported as separate **A5 landscape cards**
 - Word export: character sheet always fits on one A4 page
 - English / German, themes: Classic and Fall

@@ -8,6 +8,14 @@ const ALIGN = ['lg', 'ng', 'cg', 'ln', 'n', 'cn', 'le', 'ne', 'ce'];
 const USES = ['always', 'short', 'long'];
 const OTHER = '__other';
 const ARCANA = '◆';
+const MAX_ATTACKS = 8; // more would not fit on one A4 page
+/* Damage types for basic attacks: badge color + emoji for the dropdown (sheet uses drawn icons). */
+const DTYPES = {
+  bludgeoning: { color: '#6b625a', emoji: '🔨' }, piercing: { color: '#3f5f80', emoji: '🏹' },
+  nature: { color: '#3f7d32', emoji: '🌿' }, fire: { color: '#d2491b', emoji: '🔥' },
+  water: { color: '#2a7fbf', emoji: '💧' }, light: { color: '#d4a017', emoji: '☀️' },
+  dark: { color: '#3d2a5c', emoji: '🌙' }, mental: { color: '#a03c8c', emoji: '🧠' },
+};
 
 const STRINGS = {
   en: {
@@ -27,6 +35,9 @@ const STRINGS = {
     save: 'Saving throw', none: 'None', baseDmg: 'Base damage', scaling: 'Arcana scaling', theme: 'Theme',
     themeDefault: 'Classic', themeFall: 'Fall', storageFull: 'Browser storage is full — try a smaller picture.',
     noAbilities: 'No abilities yet.', perArcana: 'per extra',
+    hpHint: 'Hit points stay blank on the sheet and are written in pencil (they change during play and on level-up).',
+    addAttack: '+ Add attack', maxAttacks: 'Maximum reached — more attacks would not fit on one page.', dtype: 'Damage type',
+    dtypeL: { bludgeoning: 'Bludgeoning', piercing: 'Piercing', nature: 'Nature', fire: 'Fire', water: 'Water', light: 'Light', dark: 'Dark', mental: 'Mental' },
     speciesL: { human: 'Human', elf: 'Elf', dwarf: 'Dwarf', halfling: 'Halfling', gnome: 'Gnome', halfElf: 'Half-Elf', halfOrc: 'Half-Orc', tiefling: 'Tiefling', dragonborn: 'Dragonborn' },
     classL: { barbarian: 'Barbarian', bard: 'Bard', cleric: 'Cleric', druid: 'Druid', fighter: 'Fighter', monk: 'Monk', paladin: 'Paladin', ranger: 'Ranger', rogue: 'Rogue', sorcerer: 'Sorcerer', warlock: 'Warlock', wizard: 'Wizard' },
     alignL: { lg: 'Lawful Good', ng: 'Neutral Good', cg: 'Chaotic Good', ln: 'Lawful Neutral', n: 'True Neutral', cn: 'Chaotic Neutral', le: 'Lawful Evil', ne: 'Neutral Evil', ce: 'Chaotic Evil' },
@@ -52,6 +63,9 @@ const STRINGS = {
     save: 'Rettungswurf', none: 'Keiner', baseDmg: 'Grundschaden', scaling: 'Arkana-Steigerung', theme: 'Design',
     themeDefault: 'Klassisch', themeFall: 'Herbst', storageFull: 'Browser-Speicher ist voll — versuche ein kleineres Bild.',
     noAbilities: 'Noch keine Fähigkeiten.', perArcana: 'pro extra',
+    hpHint: 'Trefferpunkte bleiben auf dem Bogen leer und werden mit Bleistift eingetragen (sie ändern sich im Spiel und beim Stufenaufstieg).',
+    addAttack: '+ Angriff hinzufügen', maxAttacks: 'Maximum erreicht — mehr Angriffe passen nicht auf eine Seite.', dtype: 'Schadensart',
+    dtypeL: { bludgeoning: 'Wucht', piercing: 'Stich', nature: 'Natur', fire: 'Feuer', water: 'Wasser', light: 'Licht', dark: 'Dunkelheit', mental: 'Psychisch' },
     speciesL: { human: 'Mensch', elf: 'Elf', dwarf: 'Zwerg', halfling: 'Halbling', gnome: 'Gnom', halfElf: 'Halbelf', halfOrc: 'Halbork', tiefling: 'Tiefling', dragonborn: 'Drachenblütiger' },
     classL: { barbarian: 'Barbar', bard: 'Barde', cleric: 'Kleriker', druid: 'Druide', fighter: 'Kämpfer', monk: 'Mönch', paladin: 'Paladin', ranger: 'Waldläufer', rogue: 'Schurke', sorcerer: 'Zauberer', warlock: 'Hexenmeister', wizard: 'Magier' },
     alignL: { lg: 'Rechtschaffen gut', ng: 'Neutral gut', cg: 'Chaotisch gut', ln: 'Rechtschaffen neutral', n: 'Neutral', cn: 'Chaotisch neutral', le: 'Rechtschaffen böse', ne: 'Neutral böse', ce: 'Chaotisch böse' },
@@ -85,12 +99,12 @@ if (!STRINGS[state.lang]) state.lang = 'en';
 if (!THEMES[state.theme]) state.theme = 'default';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-const newAttack = () => ({ kind: 'weapon', name: '', range: '', dmg: '', cost: 1, mult: '' });
+const newAttack = () => ({ kind: 'weapon', name: '', range: '', dmg: '', type: 'bludgeoning', cost: 1, mult: '' });
 function newChar() {
   return {
     id: uid(), name: '', species: 'human', speciesOther: '', cls: 'fighter', clsOther: '', alignment: 'n', alignmentOther: '',
     img: '', stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, prof: 'str',
-    hpCur: 10, hpMax: 10, ac: 10, arcana: 3, attacks: [newAttack(), newAttack(), newAttack()], abilities: [],
+    ac: 10, arcana: 3, attacks: [newAttack(), newAttack(), newAttack()], abilities: [],
   };
 }
 function newAbility() {
@@ -242,20 +256,20 @@ function drawVitals(c) {
   x.textAlign = 'center'; x.textBaseline = 'alphabetic';
   const label = (txt, cx, w) => { x.fillStyle = T.border; fitText(x, txt.toUpperCase(), cx, 5, w, 3.2); };
 
-  // Broken heart: current HP left of the crack, max HP right of it
+  // Broken heart, left blank for pencil: current HP left of the crack, max HP right of it
   const hx = 31, hy = 9, hw = 56, hh = 40, gap = 1.3;
   label(t('hp'), hx, 60);
   const crack = [[hx + 0.5, hy - 2], [hx - 1.8, hy + hh * 0.36], [hx + 2, hy + hh * 0.5], [hx - 1.5, hy + hh * 0.66], [hx + 1.4, hy + hh * 0.82], [hx, hy + hh + 2]];
-  [[-1, c.hpCur, t('hpNow')], [1, c.hpMax, t('hpMaxShort')]].forEach(([side, val, sub]) => {
+  [[-1, t('hpNow')], [1, t('hpMaxShort')]].forEach(([side, sub]) => {
     x.save(); x.translate(side * gap, 0);
     x.beginPath(); x.moveTo(hx + side * hw, hy - 3); crack.forEach(([a, b]) => x.lineTo(a, b)); x.lineTo(hx + side * hw, hy + hh + 3); x.closePath(); x.clip();
     heartPath(x, hx, hy, hw, hh);
-    const g = x.createLinearGradient(0, hy, 0, hy + hh); g.addColorStop(0, T.accent); g.addColorStop(1, T.border);
-    x.fillStyle = g; x.fill(); x.strokeStyle = T.border; x.lineWidth = 0.7; x.stroke();
+    x.fillStyle = '#ffffff'; x.fill(); x.strokeStyle = T.accent; x.lineWidth = 1.6; x.stroke();
+    // outline along the crack edge too
+    heartPath(x, hx, hy, hw, hh); x.clip();
+    x.beginPath(); crack.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.lineWidth = 1.2; x.stroke();
     x.restore();
-    const tx = hx + side * (hw / 4 + 1);
-    x.fillStyle = '#fff'; fitText(x, String(val ?? ''), tx, hy + hh * 0.5, hw / 2 - 8, 11);
-    fitText(x, sub, tx, hy + hh * 0.5 + 4.5, hw / 2 - 10, 2.4);
+    x.fillStyle = T.accent; fitText(x, sub, hx + side * (hw / 4 + 0.5), hy + hh * 0.27, hw / 2 - 14, 2.4);
   });
 
   // AC shield
@@ -282,6 +296,56 @@ function drawVitals(c) {
   }
   if (!n) { x.fillStyle = T.soft; fitText(x, '—', 164, 28, 30, 8); }
   return cv.toDataURL('image/png');
+}
+
+/** Round damage-type badge (white glyph on the type's color). Cached PNG data URL. */
+const _icons = {};
+function drawIcon(type) {
+  if (_icons[type]) return _icons[type];
+  const T = DTYPES[type] || DTYPES.bludgeoning, S = 48;
+  const cv = document.createElement('canvas'); cv.width = cv.height = S * 2;
+  const x = cv.getContext('2d'); x.translate(S, S); x.scale(S, S);
+  x.beginPath(); x.arc(0, 0, 0.97, 0, 7); x.fillStyle = T.color; x.fill();
+  x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.lineCap = 'round'; x.lineJoin = 'round';
+  const fill = draw => { x.beginPath(); draw(); x.fill(); };
+  if (type === 'bludgeoning') { x.rotate(-Math.PI / 4); x.fillRect(-0.08, -0.25, 0.16, 0.85); x.fillRect(-0.45, -0.6, 0.9, 0.38); }
+  if (type === 'piercing') {
+    x.rotate(Math.PI / 4); x.lineWidth = 0.12; x.beginPath(); x.moveTo(0, 0.6); x.lineTo(0, -0.35); x.stroke();
+    fill(() => { x.moveTo(0, -0.68); x.lineTo(0.26, -0.28); x.lineTo(-0.26, -0.28); x.closePath(); });
+    x.lineWidth = 0.09; x.beginPath(); x.moveTo(0, 0.42); x.lineTo(0.2, 0.62); x.moveTo(0, 0.42); x.lineTo(-0.2, 0.62); x.stroke();
+  }
+  if (type === 'nature') {
+    x.rotate(0.6);
+    fill(() => { x.moveTo(0, -0.66); x.quadraticCurveTo(0.6, -0.05, 0, 0.5); x.quadraticCurveTo(-0.6, -0.05, 0, -0.66); });
+    x.strokeStyle = T.color; x.lineWidth = 0.07; x.beginPath(); x.moveTo(0, -0.45); x.lineTo(0, 0.45); x.stroke();
+    x.strokeStyle = '#fff'; x.lineWidth = 0.09; x.beginPath(); x.moveTo(0, 0.45); x.lineTo(0, 0.7); x.stroke();
+  }
+  if (type === 'fire') fill(() => {
+    x.moveTo(0, -0.7); x.bezierCurveTo(0.2, -0.35, 0.5, -0.15, 0.48, 0.2); x.bezierCurveTo(0.46, 0.55, 0.2, 0.65, 0, 0.65);
+    x.bezierCurveTo(-0.3, 0.65, -0.5, 0.45, -0.48, 0.15); x.bezierCurveTo(-0.46, -0.1, -0.25, -0.15, -0.2, -0.38);
+    x.bezierCurveTo(-0.05, -0.25, 0.05, -0.45, 0, -0.7);
+  });
+  if (type === 'water') fill(() => {
+    x.moveTo(0, -0.65); x.bezierCurveTo(0.15, -0.35, 0.42, -0.05, 0.42, 0.2); x.arc(0, 0.2, 0.42, 0, Math.PI);
+    x.bezierCurveTo(-0.42, -0.05, -0.15, -0.35, 0, -0.65);
+  });
+  if (type === 'light') {
+    fill(() => x.arc(0, 0, 0.28, 0, 7)); x.lineWidth = 0.1;
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; x.beginPath(); x.moveTo(Math.cos(a) * 0.42, Math.sin(a) * 0.42); x.lineTo(Math.cos(a) * 0.66, Math.sin(a) * 0.66); x.stroke(); }
+  }
+  if (type === 'dark') { fill(() => x.arc(-0.05, 0, 0.52, 0, 7)); x.fillStyle = T.color; fill(() => x.arc(0.2, -0.16, 0.46, 0, 7)); }
+  if (type === 'mental') {
+    x.lineWidth = 0.1; x.beginPath();
+    for (let a = 0; a <= 4.2 * Math.PI; a += 0.1) { const r = 0.04 + a * 0.042; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    x.stroke();
+  }
+  return (_icons[type] = cv.toDataURL('image/png'));
+}
+/** Sheet layout for n attacks: row heights in mm and how many inventory lines still fit on one page. */
+function sheetLayout(n) {
+  const head = 7, rowH = 9, gap = 1.5, budget = 130; // attacks + inventory share 130 mm
+  const att = n ? head + n * (rowH + gap) + 3 : 0;
+  return { head, rowH, gap, invLines: Math.max(3, Math.floor((budget - att - 8) / 8)) };
 }
 
 /* ---------- UI rendering ---------- */
@@ -320,13 +384,18 @@ function picField(path, img) {
 function renderForm() {
   const c = cur();
   if (!c) { form.innerHTML = ''; return; }
-  const attacks = c.attacks.map((a, i) => `<div class="attack grid">
+  const attacks = c.attacks.map((a, i) => `<div class="attack">
+      <div class="ability-head"><img class="dicon" alt="" src="${drawIcon(a.type)}">
+        <span class="grow">${esc(a.name || `${t('attack')} ${i + 1}`)}</span>
+        <button type="button" class="btn small danger" data-act="rmatk" data-i="${i}">✕</button></div>
+      <div class="grid">
       ${select(t('kind'), `attacks.${i}.kind`, ['weapon', 'spell'].map(k => `<option value="${k}"${a.kind === k ? ' selected' : ''}>${esc(t(k))}</option>`).join(''))}
-      ${input(`${t('attack')} ${i + 1}`, `attacks.${i}.name`, a.name, { max: 28 })}
+      ${input(t('name'), `attacks.${i}.name`, a.name, { max: 28 })}
       ${input(t('range'), `attacks.${i}.range`, a.range, { max: 14 })}
       ${input(t('damage'), `attacks.${i}.dmg`, a.dmg, { max: 14 })}
+      ${select(t('dtype'), `attacks.${i}.type`, Object.keys(DTYPES).map(k => `<option value="${k}"${a.type === k ? ' selected' : ''}>${DTYPES[k].emoji} ${esc(t('dtypeL')[k])}</option>`).join(''))}
       ${a.kind === 'spell' ? select(t('cost'), `attacks.${i}.cost`, costOpts(a.cost)) + input(t('mult'), `attacks.${i}.mult`, a.mult, { max: 8 }) : ''}
-    </div>`).join('');
+    </div></div>`).join('');
 
   const abilities = c.abilities.map((a, i) => {
     const P = `abilities.${i}`;
@@ -374,12 +443,11 @@ function renderForm() {
   <div class="grid" style="margin-top:8px">${select(t('proficiency'), 'prof', statOpts(c.prof), 'wide')}</div>
   <p class="hint" style="margin-top:6px">★ ${esc(t('profHint'))}</p></fieldset>
   <fieldset><legend>${esc(t('combat'))}</legend><div class="grid">
-    ${input(t('hpCur'), 'hpCur', c.hpCur, { type: 'number', maxN: 999 })}
-    ${input(t('hpMax'), 'hpMax', c.hpMax, { type: 'number', maxN: 999 })}
     ${input(t('ac'), 'ac', c.ac, { type: 'number', maxN: 99 })}
     ${input(t('arcanaMax'), 'arcana', c.arcana, { type: 'number', maxN: 12 })}
-  </div><p class="hint" style="margin-top:6px">${esc(t('arcanaHint'))}</p></fieldset>
-  <fieldset><legend>${esc(t('attacks'))}</legend>${attacks}</fieldset>
+  </div><p class="hint" style="margin-top:6px">${esc(t('hpHint'))}<br>${esc(t('arcanaHint'))}</p></fieldset>
+  <fieldset><legend>${esc(t('attacks'))}</legend>${attacks}
+    ${c.attacks.length < MAX_ATTACKS ? `<button type="button" class="btn" data-act="addatk">${esc(t('addAttack'))}</button>` : `<p class="hint">${esc(t('maxAttacks'))}</p>`}</fieldset>
   <fieldset><legend>${esc(t('abilities'))}</legend><p class="hint">${esc(t('abilitiesHint'))}</p>${abilities}
     <button type="button" class="btn" data-act="addab">${esc(t('addAbility'))}</button></fieldset>`;
 }
@@ -388,7 +456,10 @@ function renderPreview() {
   const c = cur(), el = $('#sheet');
   if (!c) { el.innerHTML = ''; return; }
   el.style.backgroundImage = `url(${frameCache()})`;
-  const rows = c.attacks.map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.range)}</td><td>${esc(a.dmg)}</td><td>${a.name || a.dmg ? esc(attackArcana(a)) : ''}</td></tr>`).join('');
+  const L = sheetLayout(c.attacks.length);
+  const rows = c.attacks.map(a => `<tr class="gap"><td colspan="5"></td></tr><tr class="atk">
+    <td class="ic"><img alt="" src="${drawIcon(a.type)}"></td><td><b>${esc(a.name)}</b></td><td>${esc(a.range)}</td>
+    <td>${esc(a.dmg)} <i>${esc(t('dtypeL')[a.type] || '')}</i></td><td>${esc(attackArcana(a))}</td></tr>`).join('');
   el.innerHTML = `
     <div class="sh-head">
       <div class="sh-portrait" style="background-image:${c.img ? `url(${c.img})` : 'none'}"></div>
@@ -403,9 +474,9 @@ function renderPreview() {
       <span class="sc">${esc(c.stats[s])}</span><span class="md">${fmtMod(mod(c.stats[s]))}</span>
       ${c.prof === s ? `<span class="adv">★ ${esc(t('advantage'))}</span>` : ''}</div>`).join('')}</div>
     <img class="sh-vitals" alt="" src="${drawVitals(c)}">
-    <table class="sh-att"><colgroup><col style="width:34%"><col style="width:18%"><col style="width:22%"><col style="width:26%"></colgroup>
-      <tr><th>${esc(t('attacks'))}</th><th>${esc(t('range'))}</th><th>${esc(t('damage'))}</th><th>${esc(t('arcana'))}</th></tr>${rows}</table>
-    <div class="sh-inv"><h3>${esc(t('inventory'))}</h3>${'<div></div>'.repeat(11)}</div>`;
+    ${c.attacks.length ? `<table class="sh-att"><colgroup><col style="width:6%"><col style="width:30%"><col style="width:16%"><col style="width:24%"><col style="width:24%"></colgroup>
+      <tr><th colspan="2">${esc(t('attacks'))}</th><th>${esc(t('range'))}</th><th>${esc(t('damage'))}</th><th>${esc(t('arcana'))}</th></tr>${rows}</table>` : ''}
+    <div class="sh-inv"><h3>${esc(t('inventory'))}</h3>${'<div></div>'.repeat(L.invLines)}</div>`;
 }
 let _frame = {};
 function frameCache() { return _frame[state.theme] ??= drawFrame(210, 297, { radius: 0, inset: 5, orn: 6 }); }
@@ -442,6 +513,8 @@ form.addEventListener('input', e => {
   save();
   const m = p.match(/^stats\.(\w+)$/);
   if (m) form.querySelector(`[data-mod="${m[1]}"]`).textContent = fmtMod(mod(c.stats[m[1]]));
+  const at = p.match(/^attacks\.(\d+)\.name$/);
+  if (at) el.closest('.attack').querySelector('.grow').textContent = el.value || `${t('attack')} ${Number(at[1]) + 1}`;
   const ab = p.match(/^abilities\.(\d+)\./);
   if (ab) {
     const a = c.abilities[ab[1]], strip = form.querySelector(`[data-strip="${ab[1]}"]`);
@@ -468,6 +541,8 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); const c = cur();
   if (b && c) {
     const i = Number(b.dataset.i), act = b.dataset.act;
+    if (act === 'addatk' && c.attacks.length < MAX_ATTACKS) { c.attacks.push(newAttack()); save(); renderForm(); renderPreview(); }
+    if (act === 'rmatk' && confirm(t('remove') + '?')) { c.attacks.splice(i, 1); save(); renderForm(); renderPreview(); }
     if (act === 'addab') { c.abilities.push(newAbility()); save(); renderAll(); }
     if (act === 'rmab' && confirm(t('remove') + '?')) { c.abilities.splice(i, 1); save(); renderAll(); }
     if (act === 'up' && i > 0) { [c.abilities[i - 1], c.abilities[i]] = [c.abilities[i], c.abilities[i - 1]]; save(); renderForm(); }
@@ -579,24 +654,36 @@ async function exportSheet(c) {
     ], sw, { fill: p ? T.accent2 : T.soft, borders: { top: line(T.border, 6), bottom: line(T.border, 6), left: line(T.border, 6), right: line(T.border, 6) } });
   }), 24)], Array(6).fill(sw));
 
-  const cols = [62, 32, 40, 48];
+  // Attacks: each one in its own framed row with a damage-type icon, separated by small gaps
+  const L = sheetLayout(c.attacks.length);
+  const cols = [11, 55, 29, 44, 43];
+  const icons = {};
+  for (const a of c.attacks) icons[a.type] ??= await pngInfo(drawIcon(a.type));
   const hc = (txt, w) => cell(para(run(txt, { size: 18, bold: true, color: 'FFFFFF' })), w, { fill: T.accent });
-  const bb = { bottom: line(T.soft, 6) };
-  const attacks = table([
-    row([hc(t('attacks'), cols[0]), hc(t('range'), cols[1]), hc(t('damage'), cols[2]), hc(t('arcana'), cols[3])], 7),
-    ...c.attacks.map(a => row([
-      cell(para(run(a.name, { size: 20, bold: true })), cols[0], { borders: bb }),
-      cell(para(run(a.range)), cols[1], { borders: bb }),
-      cell(para(run(a.dmg)), cols[2], { borders: bb }),
-      cell(para(run(a.name || a.dmg ? attackArcana(a) : '', { color: hex(T.accent) })), cols[3], { borders: bb }),
-    ], 8)),
-  ], cols);
+  const ab = line(T.border, 8);
+  const edge = (first, last) => ({ top: ab, bottom: ab, ...(first ? { left: ab } : {}), ...(last ? { right: ab } : {}) });
+  const attacks = c.attacks.length ? table([
+    new D.TableRow({ children: [new D.TableCell({ children: [para(run(t('attacks'), { size: 18, bold: true, color: 'FFFFFF' }))], columnSpan: 2,
+      width: { size: tw(cols[0] + cols[1]), type: D.WidthType.DXA }, shading: { type: D.ShadingType.CLEAR, color: 'auto', fill: hex(T.accent) },
+      verticalAlign: D.VerticalAlign.CENTER, margins: { left: tw(1.5), right: tw(1.5) }, borders: { top: K.NB, bottom: K.NB, left: K.NB, right: K.NB } }),
+      hc(t('range'), cols[2]), hc(t('damage'), cols[3]), hc(t('arcana'), cols[4])], height: { value: tw(L.head), rule: D.HeightRule.EXACT } }),
+    ...c.attacks.flatMap(a => [
+      row(cols.map(w => cell(para(run('', { size: 2 })), w)), L.gap),
+      row([
+        cell(para(image(icons[a.type], 6.5, 6.5), { alignment: center }), cols[0], { borders: edge(true, false), fill: T.soft, margins: { left: 0, right: 0, top: 0, bottom: 0 } }),
+        cell(para(run(a.name, { size: a.name.length > 22 ? 16 : 20, bold: true })), cols[1], { borders: edge() }),
+        cell(para(run(a.range)), cols[2], { borders: edge() }),
+        cell(para([run(a.dmg, { bold: true }), run('  ' + (t('dtypeL')[a.type] || ''), { size: 16, italics: true, color: DTYPES[a.type]?.color.slice(1) })]), cols[3], { borders: edge() }),
+        cell(para(run(attackArcana(a), { color: hex(T.accent) })), cols[4], { borders: edge(false, true) }),
+      ], L.rowH),
+    ]),
+  ], cols) : null;
 
   const box = line(T.border, 6);
   const inventory = table([
     row([cell(para(run(t('inventory'), { size: 22, bold: true, color: hex(T.accent) })), 182, { fill: T.soft, borders: { top: box, left: box, right: box } })], 8),
-    ...Array.from({ length: 11 }, (_, i) => row([cell(para(run('')), 182, {
-      borders: { left: box, right: box, bottom: i === 10 ? box : line(T.border, 4, D.BorderStyle.DOTTED) },
+    ...Array.from({ length: L.invLines }, (_, i) => row([cell(para(run('')), 182, {
+      borders: { left: box, right: box, bottom: i === L.invLines - 1 ? box : line(T.border, 4, D.BorderStyle.DOTTED) },
     })], 8)),
   ], [182]);
 
@@ -608,7 +695,7 @@ async function exportSheet(c) {
         K.background(drawFrame(210, 297, { radius: 0, inset: 5, orn: 6 }), 210, 297),
         header, spacer(3), stats, spacer(3),
         para(image(vitals, 182, 52)), spacer(2),
-        attacks, spacer(3), inventory,
+        ...(attacks ? [attacks, spacer(3)] : []), inventory,
         para(run('', { size: 2 }), { spacing: { before: 0, after: 0, line: tw(1), lineRule: 'exact' } }),
       ],
     }],
@@ -671,6 +758,8 @@ async function exportCards(c, list) {
 }
 
 /* ---------- boot ---------- */
+// migrate characters saved by older versions
+state.chars.forEach(c => { c.attacks = (c.attacks || []).slice(0, MAX_ATTACKS); c.attacks.forEach(a => { if (!DTYPES[a.type]) a.type = 'bludgeoning'; }); delete c.hpCur; delete c.hpMax; });
 if (!state.chars.length) addChar();
 if (!cur()) state.currentId = state.chars[0].id;
 save();
