@@ -5,6 +5,7 @@ Characters are saved in your browser's local storage.
 
 ## Features
 - Name, species, class, alignment (dropdowns with standard values + free text), picture
+- Level 1–3 shown as 3 stars (reached levels filled, the rest empty to fill in with pencil)
 - The 6 ability scores with modifiers, one proficiency (rolls with that stat have advantage)
 - HP in a blank broken heart for pencil (current left of the crack, max right), Armor Class, empty armor square for printed armor cards
 - **Arcana**: mana pool that replaces cantrips and spell slots — circles on the sheet for paper chips.
