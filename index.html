@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simple D&amp;D Sheets</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="default">
+  <header class="topbar">
+    <h1 id="appTitle">Simple D&amp;D Sheets</h1>
+    <div class="top-controls">
+      <label class="inline"><span id="themeLabel">Theme</span>
+        <select id="themeSelect"></select>
+      </label>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="de">DE</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <h2 id="charsTitle">Characters</h2>
+      <button type="button" class="btn primary block" id="newChar">+ New character</button>
+      <ul id="charList" class="char-list"></ul>
+    </aside>
+
+    <main class="editor">
+      <div class="actions" id="actions"></div>
+      <form id="form" autocomplete="off" onsubmit="return false"></form>
+    </main>
+
+    <section class="preview">
+      <h2 id="previewTitle">Sheet preview</h2>
+      <div class="sheet-wrap"><div id="sheet" class="sheet"></div></div>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
