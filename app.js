@@ -36,6 +36,7 @@ const STRINGS = {
     themeDefault: 'Classic', themeFall: 'Fall', storageFull: 'Browser storage is full — try a smaller picture.',
     noAbilities: 'No abilities yet.', perArcana: 'per extra',
     hpHint: 'Hit points stay blank on the sheet and are written in pencil (they change during play and on level-up).',
+    speed: 'Speed (m per turn)', speedLabel: 'Speed / turn',
     level: 'Level', levelHint: 'Shown as stars on the sheet. Empty stars can be filled in with pencil on level-up.',
     addAttack: '+ Add attack', maxAttacks: 'The page is full — no room for another attack.', atkEffect: 'Effect (short)',
     tooLong: 'Too much for one page — shorten or remove an effect or an attack.', dtype: 'Damage type',
@@ -66,6 +67,7 @@ const STRINGS = {
     themeDefault: 'Klassisch', themeFall: 'Herbst', storageFull: 'Browser-Speicher ist voll — versuche ein kleineres Bild.',
     noAbilities: 'Noch keine Fähigkeiten.', perArcana: 'pro extra',
     hpHint: 'Trefferpunkte bleiben auf dem Bogen leer und werden mit Bleistift eingetragen (sie ändern sich im Spiel und beim Stufenaufstieg).',
+    speed: 'Bewegung (m pro Zug)', speedLabel: 'Bewegung / Zug',
     level: 'Stufe', levelHint: 'Wird als Sterne auf dem Bogen gezeigt. Leere Sterne können beim Stufenaufstieg mit Bleistift ausgemalt werden.',
     addAttack: '+ Angriff hinzufügen', maxAttacks: 'Die Seite ist voll — kein Platz für einen weiteren Angriff.', atkEffect: 'Effekt (kurz)',
     tooLong: 'Zu viel für eine Seite — kürze oder entferne einen Effekt oder einen Angriff.', dtype: 'Schadensart',
@@ -108,7 +110,7 @@ function newChar() {
   return {
     id: uid(), name: '', species: 'human', speciesOther: '', cls: 'fighter', clsOther: '', alignment: 'n', alignmentOther: '',
     img: '', stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, prof: 'str',
-    level: 1, ac: 10, arcana: 3, attacks: [newAttack(), newAttack(), newAttack()], abilities: [],
+    level: 1, speed: 9, ac: 10, arcana: 3, attacks: [newAttack(), newAttack(), newAttack()], abilities: [],
   };
 }
 function newAbility() {
@@ -258,15 +260,27 @@ function starPath(x, cx, cy, R, r) {
   for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, d = i % 2 ? r : R; x.lineTo(cx + Math.cos(a) * d, cy + Math.sin(a) * d); }
   x.closePath();
 }
-/** Level badge: 3 stars, reached levels filled, the rest empty for pencil. 32 × 26 mm. */
-function drawLevel(level) {
-  const T = th(), [cv, x] = mmCanvas(32, 26, 8);
+/** Header badge, 32 × 38 mm: level as 3 stars (reached levels filled, the rest empty for pencil) + movement speed. */
+function drawHeaderBadge(c) {
+  const T = th(), [cv, x] = mmCanvas(32, 38, 8), level = c.level;
   x.textAlign = 'center'; x.fillStyle = T.border; fitText(x, t('level').toUpperCase(), 16, 5, 30, 3.2);
   [[6, 17], [16, 13], [26, 17]].forEach(([cx, cy], i) => {
     starPath(x, cx, cy, 5, 2.2);
     x.fillStyle = i < level ? T.accent2 : '#ffffff'; x.fill();
     x.lineJoin = 'round'; x.strokeStyle = i < level ? T.border : T.accent; x.lineWidth = 0.6; x.stroke();
   });
+  // movement speed pill with a footprint icon
+  x.fillStyle = T.border; fitText(x, t('speedLabel').toUpperCase(), 16, 27, 31, 2.6);
+  rr(x, 2, 29, 28, 8.5, 4.25); x.fillStyle = T.soft; x.fill(); x.strokeStyle = T.border; x.lineWidth = 0.5; x.stroke();
+  x.fillStyle = T.accent;
+  [[6.2, 32.4, -0.25], [8.6, 34.4, 0.25]].forEach(([fx, fy, r]) => {
+    x.save(); x.translate(fx, fy); x.rotate(r);
+    x.beginPath(); x.ellipse(0, 0, 0.9, 1.5, 0, 0, 7); x.fill();
+    x.beginPath(); x.ellipse(0, 2.1, 0.7, 0.55, 0, 0, 7); x.fill();
+    x.restore();
+  });
+  const v = Number(c.speed);
+  x.fillStyle = T.ink; fitText(x, (Number.isFinite(v) && c.speed !== '' ? v.toLocaleString(state.lang) : '—') + ' m', 19, 35.3, 18, 5);
   return cv.toDataURL('image/png');
 }
 /** Strip with broken heart (HP), AC shield, empty armor square and arcana circles: 182 × 52 mm. */
@@ -381,7 +395,7 @@ function opts(keys, map, val, withOther = true) {
     (withOther ? `<option value="${OTHER}"${val === OTHER ? ' selected' : ''}>${esc(t('other'))}</option>` : '');
 }
 function input(label, path, val, { type = 'text', max = 40, cls = '', min, maxN } = {}) {
-  const extra = type === 'number' ? ` min="${min ?? 0}" max="${maxN ?? 999}"` : ` maxlength="${max}"`;
+  const extra = type === 'number' ? ` min="${min ?? 0}" max="${maxN ?? 999}" step="any"` : ` maxlength="${max}"`;
   return `<label class="f ${cls}"><span>${esc(label)}</span><input type="${type}" data-p="${path}" value="${esc(val)}"${extra}></label>`;
 }
 function textarea(label, path, val, max) {
@@ -474,6 +488,7 @@ function renderForm() {
   <p class="hint" style="margin-top:6px">★ ${esc(t('profHint'))}</p></fieldset>
   <fieldset><legend>${esc(t('combat'))}</legend><div class="grid">
     ${input(t('ac'), 'ac', c.ac, { type: 'number', maxN: 99 })}
+    ${input(t('speed'), 'speed', c.speed, { type: 'number', maxN: 999 })}
     ${input(t('arcanaMax'), 'arcana', c.arcana, { type: 'number', maxN: 12 })}
   </div><p class="hint" style="margin-top:6px">${esc(t('hpHint'))}<br>${esc(t('arcanaHint'))}</p></fieldset>
   <fieldset><legend>${esc(t('attacks'))}</legend>${attacks}
@@ -501,7 +516,7 @@ function renderPreview() {
         <div class="sh-align">${esc(alignText(c))}</div>
         <div class="sh-prof">★ ${esc(t('proficiency'))}: ${esc(t('statL')[c.prof])} — ${esc(t('profHint'))}</div>
       </div>
-      <img class="sh-level" alt="" src="${drawLevel(c.level)}">
+      <img class="sh-level" alt="" src="${drawHeaderBadge(c)}">
     </div>
     <div class="sh-stats">${STATS.map(s => `<div class="sh-stat${c.prof === s ? ' prof' : ''}"><b>${t('statA')[s]}</b>
       <span class="sc">${esc(c.stats[s])}</span><span class="md">${fmtMod(mod(c.stats[s]))}</span>
@@ -670,7 +685,7 @@ async function exportSheet(c) {
   const K = kit(), { D, T, run, para, spacer, cell, row, table, image, line, center } = K;
   const portrait = c.img ? await pngInfo(c.img) : null;
   const vitals = await pngInfo(drawVitals(c));
-  const level = await pngInfo(drawLevel(c.level));
+  const level = await pngInfo(drawHeaderBadge(c));
 
   const header = table([row([
     cell(portrait ? para(image(portrait, 36, 36), { alignment: center }) : para(run('')), 40,
@@ -681,7 +696,7 @@ async function exportSheet(c) {
       para(run(alignText(c), { size: 22, italics: true })),
       para(run(`★ ${t('proficiency')}: ${t('statL')[c.prof]} — ${t('profHint')}`, { size: 17, color: hex(T.accent) }), { spacing: { before: 120 } }),
     ], 110, { margins: { top: 0, bottom: 0, left: tw(4), right: tw(1) } }),
-    cell(para(image(level, 32, 26), { alignment: center }), 32, { margins: { top: 0, bottom: 0, left: 0, right: 0 } }),
+    cell(para(image(level, 31, 37), { alignment: center }), 32, { margins: { top: 0, bottom: 0, left: 0, right: 0 } }),
   ], 40)], [40, 110, 32]);
 
   const sw = 182 / 6;
@@ -821,7 +836,7 @@ function guessDtype(txt) {
   return Object.keys(words).find(k => words[k].some(w => s.includes(w))) || 'bludgeoning';
 }
 // migrate characters saved by older versions
-state.chars.forEach(c => { c.attacks = (c.attacks || []).slice(0, MAX_ATTACKS); c.attacks.forEach(a => { if (!DTYPES[a.type]) a.type = 'bludgeoning'; a.effect ??= ''; }); delete c.hpCur; delete c.hpMax; if (![1, 2, 3].includes(c.level)) c.level = 1;
+state.chars.forEach(c => { c.attacks = (c.attacks || []).slice(0, MAX_ATTACKS); c.attacks.forEach(a => { if (!DTYPES[a.type]) a.type = 'bludgeoning'; a.effect ??= ''; }); delete c.hpCur; delete c.hpMax; if (![1, 2, 3].includes(c.level)) c.level = 1; if (typeof c.speed !== 'number') c.speed = 9;
   (c.abilities || []).forEach(a => { if (!DTYPES[a.dmgType]) a.dmgType = guessDtype(a.dmgType); }); });
 if (!state.chars.length) addChar();
 if (!cur()) state.currentId = state.chars[0].id;
