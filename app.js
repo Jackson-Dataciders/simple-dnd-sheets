@@ -109,7 +109,7 @@ function newChar() {
 }
 function newAbility() {
   return { id: uid(), type: 'spell', name: '', img: '', effect: '', flavor: '', trigger: '', uses: 'always', usesOther: '',
-    stat: 'str', range: '', dmg: '', dmgType: '', cost: 1, mult: '', duration: '', save: '' };
+    stat: 'str', range: '', dmg: '', dmgType: 'bludgeoning', cost: 1, mult: '', duration: '', save: '' };
 }
 function save() {
   const ok = store.set('dnd-sheets', state.chars) && store.set('dnd-current', state.currentId);
@@ -381,6 +381,9 @@ function picField(path, img) {
   </div></div>`;
 }
 
+const dtypeSelect = (path, val) => select(t('dtype'), path,
+  Object.keys(DTYPES).map(k => `<option value="${k}"${val === k ? ' selected' : ''}>${DTYPES[k].emoji} ${esc(t('dtypeL')[k])}</option>`).join(''));
+
 function renderForm() {
   const c = cur();
   if (!c) { form.innerHTML = ''; return; }
@@ -393,7 +396,7 @@ function renderForm() {
       ${input(t('name'), `attacks.${i}.name`, a.name, { max: 28 })}
       ${input(t('range'), `attacks.${i}.range`, a.range, { max: 14 })}
       ${input(t('damage'), `attacks.${i}.dmg`, a.dmg, { max: 14 })}
-      ${select(t('dtype'), `attacks.${i}.type`, Object.keys(DTYPES).map(k => `<option value="${k}"${a.type === k ? ' selected' : ''}>${DTYPES[k].emoji} ${esc(t('dtypeL')[k])}</option>`).join(''))}
+      ${dtypeSelect(`attacks.${i}.type`, a.type)}
       ${a.kind === 'spell' ? select(t('cost'), `attacks.${i}.cost`, costOpts(a.cost)) + input(t('mult'), `attacks.${i}.mult`, a.mult, { max: 8 }) : ''}
     </div></div>`).join('');
 
@@ -403,15 +406,15 @@ function renderForm() {
     let specific = '';
     if (a.type === 'passive') specific = input(t('trigger'), `${P}.trigger`, a.trigger, { max: 80, cls: 'wide' }) + usesSel;
     if (a.type === 'attack') specific = select(t('stat'), `${P}.stat`, statOpts(a.stat)) + input(t('range'), `${P}.range`, a.range, { max: 20 }) +
-      input(t('damage'), `${P}.dmg`, a.dmg, { max: 16 }) + input(t('dmgType'), `${P}.dmgType`, a.dmgType, { max: 24 }) + usesSel;
+      input(t('damage'), `${P}.dmg`, a.dmg, { max: 16 }) + dtypeSelect(`${P}.dmgType`, a.dmgType) + usesSel;
     if (a.type === 'spell') specific = select(t('cost'), `${P}.cost`, costOpts(a.cost)) + input(t('baseDmg'), `${P}.dmg`, a.dmg, { max: 16 }) +
-      input(t('mult'), `${P}.mult`, a.mult, { max: 8 }) + input(t('dmgType'), `${P}.dmgType`, a.dmgType, { max: 24 }) +
+      input(t('mult'), `${P}.mult`, a.mult, { max: 8 }) + dtypeSelect(`${P}.dmgType`, a.dmgType) +
       input(t('range'), `${P}.range`, a.range, { max: 20 }) + input(t('duration'), `${P}.duration`, a.duration, { max: 24 }) +
       select(t('save'), `${P}.save`, statOpts(a.save, true)) +
       `<div class="f wide"><span>${esc(t('scaling'))}</span><div class="strip" data-strip="${i}">${esc(scalingText(a.cost, a.dmg, a.mult))}</div></div>`;
     return `<div class="ability">
       <div class="ability-head">
-        <span class="grow">${esc(a.name || t('typeL')[a.type])}</span>
+        ${a.type !== 'passive' ? `<img class="dicon" alt="" src="${drawIcon(a.dmgType)}">` : ''}<span class="grow">${esc(a.name || t('typeL')[a.type])}</span>
         <button type="button" class="btn small" data-act="up" data-i="${i}" title="▲">▲</button>
         <button type="button" class="btn small" data-act="down" data-i="${i}" title="▼">▼</button>
         <button type="button" class="btn small primary" data-act="card" data-i="${i}">${esc(t('exportCard'))}</button>
@@ -707,23 +710,27 @@ async function cardSection(c, a, frame) {
   const K = kit(), { D, T, run, para, spacer, cell, row, table, image, line, center } = K;
   const pic = a.img ? await pngInfo(a.img) : null;
   const typeName = t('typeL')[a.type];
+  const dIcon = a.type !== 'passive' ? await pngInfo(drawIcon(a.dmgType)) : null;
   const corner = a.type === 'spell' ? run(ARCANA.repeat(Math.min(3, Math.max(1, Number(a.cost) || 1))), { size: 30, color: hex(T.accent) })
     : run(usesText(a), { size: 16, italics: true });
 
   const top = table([row([
     cell(para(run(typeName.toUpperCase(), { size: 20, bold: true, color: 'FFFFFF' }), { alignment: center }), 32, { fill: T.accent }),
-    cell(para(run(a.name || typeName, { size: 36, bold: true, color: hex(T.accent) })), 124, { margins: { top: 0, bottom: 0, left: tw(4), right: tw(1) } }),
+    cell(para([...(dIcon ? [image(dIcon, 8, 8), run('  ', { size: 36 })] : []), run(a.name || typeName, { size: 36, bold: true, color: hex(T.accent) })]), 124, { margins: { top: 0, bottom: 0, left: tw(4), right: tw(1) } }),
     cell(para(corner, { alignment: D.AlignmentType.RIGHT }), 30),
   ], 14)], [32, 124, 30], { borders: { ...K.noBorders, bottom: line(T.accent2, 12) } });
 
   const stat = (label, value) => value ? [para([run(label + ': ', { bold: true, size: 19, color: hex(T.accent) }), run(value, { size: 19 })])] : [];
-  const dmg = [a.dmg, a.dmgType].filter(Boolean).join(' ');
+  const dCol = (DTYPES[a.dmgType] || DTYPES.bludgeoning).color.slice(1).toUpperCase();
+  const damage = () => (a.dmg ? [para([run(t('damage') + ': ', { bold: true, size: 19, color: hex(T.accent) }),
+    image(dIcon, 4.2, 4.2), run(' ' + a.dmg + ' ', { size: 19, bold: true }),
+    run(t('dtypeL')[a.dmgType] || '', { size: 19, italics: true, color: dCol })])] : []);
   let details = [];
   if (a.type === 'passive') details = [...stat(t('trigger'), a.trigger), ...stat(t('uses'), usesText(a))];
-  if (a.type === 'attack') details = [...stat(t('stat'), t('statL')[a.stat]), ...stat(t('range'), a.range), ...stat(t('damage'), dmg), ...stat(t('uses'), usesText(a))];
+  if (a.type === 'attack') details = [...stat(t('stat'), t('statL')[a.stat]), ...stat(t('range'), a.range), ...damage(), ...stat(t('uses'), usesText(a))];
   if (a.type === 'spell') {
     const m = String(a.mult || '').replace(/^\+\s*/, '');
-    details = [...stat(t('cost'), `${ARCANA.repeat(Number(a.cost) || 1)} (${a.cost || 1})`), ...stat(t('damage'), dmg), ...stat(t('range'), a.range),
+    details = [...stat(t('cost'), `${ARCANA.repeat(Number(a.cost) || 1)} (${a.cost || 1})`), ...damage(), ...stat(t('range'), a.range),
       ...stat(t('duration'), a.duration), ...stat(t('save'), a.save ? t('statL')[a.save] : ''),
       ...(m ? stat(t('mult'), `+${m} ${t('perArcana')} ${ARCANA}`) : []),
       para(run(scalingText(a.cost, a.dmg, a.mult), { size: 22, bold: true, color: hex(T.accent) }),
@@ -758,8 +765,17 @@ async function exportCards(c, list) {
 }
 
 /* ---------- boot ---------- */
+/** Map old free-text damage types ("fire", "Feuer", ...) onto the fixed list. */
+function guessDtype(txt) {
+  const s = String(txt || '').toLowerCase();
+  const words = { piercing: ['pierc', 'stich'], nature: ['natur', 'poison', 'gift', 'acid', 'säure'], fire: ['fire', 'feuer', 'flame'],
+    water: ['water', 'wasser', 'cold', 'kälte', 'ice', 'eis'], light: ['light', 'licht', 'radiant', 'gleißend', 'lightning', 'blitz'],
+    dark: ['dark', 'dunkel', 'necrotic', 'nekrot', 'shadow', 'schatten'], mental: ['mental', 'psych'] };
+  return Object.keys(words).find(k => words[k].some(w => s.includes(w))) || 'bludgeoning';
+}
 // migrate characters saved by older versions
-state.chars.forEach(c => { c.attacks = (c.attacks || []).slice(0, MAX_ATTACKS); c.attacks.forEach(a => { if (!DTYPES[a.type]) a.type = 'bludgeoning'; }); delete c.hpCur; delete c.hpMax; });
+state.chars.forEach(c => { c.attacks = (c.attacks || []).slice(0, MAX_ATTACKS); c.attacks.forEach(a => { if (!DTYPES[a.type]) a.type = 'bludgeoning'; }); delete c.hpCur; delete c.hpMax;
+  (c.abilities || []).forEach(a => { if (!DTYPES[a.dmgType]) a.dmgType = guessDtype(a.dmgType); }); });
 if (!state.chars.length) addChar();
 if (!cur()) state.currentId = state.chars[0].id;
 save();
