@@ -105,3 +105,28 @@ legend { font-family: var(--font); color: var(--accent); font-weight: 700; paddi
 .sh-inv h3 { background: var(--soft); font-size: calc(var(--mm) * 3.8); height: calc(var(--mm) * 8); line-height: calc(var(--mm) * 8); padding: 0 calc(var(--mm) * 2); }
 .sh-inv div { height: calc(var(--mm) * 8); border-bottom: calc(var(--mm) * .3) dotted var(--border); }
 .sh-inv div:last-child { border-bottom: 0; }
+
+/* ---------- PDF export (rendered off-screen, then captured) ---------- */
+.pdf-stage { position: fixed; left: 0; top: 0; z-index: -1; pointer-events: none; }
+.pdf-stage .sheet.pdf-sheet { --mm: 3.7795px; width: calc(var(--mm) * 210); height: calc(var(--mm) * 297); aspect-ratio: auto; box-shadow: none; }
+.card { --mm: 3.7795px; width: calc(var(--mm) * 210); height: calc(var(--mm) * 148); background: #fff center/100% 100% no-repeat;
+  padding: calc(var(--mm) * 12) calc(var(--mm) * 12) calc(var(--mm) * 8); font-family: var(--font); color: var(--ink); font-size: calc(var(--mm) * 3.35); line-height: 1.2; }
+.cd-top { display: grid; grid-template-columns: calc(var(--mm) * 32) 1fr calc(var(--mm) * 30); height: calc(var(--mm) * 14); align-items: center;
+  border-bottom: calc(var(--mm) * .55) solid var(--accent2); }
+.cd-badge { background: var(--accent); color: #fff; font-weight: 700; height: 100%; display: flex; align-items: center; justify-content: center; font-size: calc(var(--mm) * 3.5); }
+.cd-name { display: flex; align-items: center; gap: calc(var(--mm) * 2); padding-left: calc(var(--mm) * 4); font-size: calc(var(--mm) * 6.35); font-weight: 700; color: var(--accent); white-space: nowrap; overflow: hidden; }
+.cd-name img { width: calc(var(--mm) * 8); height: calc(var(--mm) * 8); }
+.cd-corner { text-align: right; font-size: calc(var(--mm) * 2.8); }
+.cd-arc { color: var(--accent); font-size: calc(var(--mm) * 5.3); }
+.cd-body { display: grid; grid-template-columns: calc(var(--mm) * 60) 1fr; height: calc(var(--mm) * 76); margin-top: calc(var(--mm) * 3); }
+.cd-pic { margin: calc(var(--mm) * 3) calc(var(--mm) * 2); background: center/contain no-repeat; }
+.cd-pic.empty { background: var(--soft); border: calc(var(--mm) * .3) solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--border); margin: 0; }
+.cd-det { padding: calc(var(--mm) * 1) calc(var(--mm) * 1) 0 calc(var(--mm) * 5); overflow: hidden; }
+.cd-det b { color: var(--accent); }
+.cd-di { width: calc(var(--mm) * 4.2); height: calc(var(--mm) * 4.2); vertical-align: middle; }
+.cd-strip { background: var(--soft); color: var(--accent); font-weight: 700; font-size: calc(var(--mm) * 3.9); padding: calc(var(--mm) * .5) calc(var(--mm) * 1); margin: calc(var(--mm) * 1.8) 0 calc(var(--mm) * 1); white-space: pre; }
+.cd-eff { white-space: pre-line; margin-top: calc(var(--mm) * 2); font-size: calc(var(--mm) * 3.5); }
+.cd-flavor { height: calc(var(--mm) * 22); margin-top: calc(var(--mm) * 3); border-top: calc(var(--mm) * .3) solid var(--accent2); display: flex; align-items: center; justify-content: center;
+  text-align: center; font-style: italic; color: var(--border); padding: 0 calc(var(--mm) * 4); overflow: hidden; }
+.sh-att b.small { font-size: calc(var(--mm) * 2.85); }
+.cd-eff, .cd-flavor, .cd-det { overflow-wrap: anywhere; }

@@ -17,6 +17,7 @@ Characters are saved in your browser's local storage.
 - Empty inventory lines for pencil notes
 - Additional abilities (passive / attack / spell) exported as separate **A5 landscape cards**
 - Word export: character sheet always fits on one A4 page
+- "Export all as PDF": every character sheet followed by its ability cards, 2 cards per A4 page (with a cut line)
 - English / German, themes: Classic and Fall
 
 ## Run locally

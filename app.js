@@ -36,6 +36,8 @@ const STRINGS = {
     themeDefault: 'Classic', themeFall: 'Fall', storageFull: 'Browser storage is full — try a smaller picture.',
     noAbilities: 'No abilities yet.', perArcana: 'per extra',
     hpHint: 'Hit points stay blank on the sheet and are written in pencil (they change during play and on level-up).',
+    pdfAll: 'Export all as PDF', pdfBusy: 'Creating PDF…', pdfFile: 'characters',
+    chipsPdf: 'Arcana chips (PDF)', chipsFile: 'arcana-chips',
     speed: 'Speed (m per turn)', speedLabel: 'Speed / turn',
     level: 'Level', levelHint: 'Shown as stars on the sheet. Empty stars can be filled in with pencil on level-up.',
     addAttack: '+ Add attack', maxAttacks: 'The page is full — no room for another attack.', atkEffect: 'Effect (short)',
@@ -67,6 +69,8 @@ const STRINGS = {
     themeDefault: 'Klassisch', themeFall: 'Herbst', storageFull: 'Browser-Speicher ist voll — versuche ein kleineres Bild.',
     noAbilities: 'Noch keine Fähigkeiten.', perArcana: 'pro extra',
     hpHint: 'Trefferpunkte bleiben auf dem Bogen leer und werden mit Bleistift eingetragen (sie ändern sich im Spiel und beim Stufenaufstieg).',
+    pdfAll: 'Alle als PDF exportieren', pdfBusy: 'PDF wird erstellt…', pdfFile: 'charaktere',
+    chipsPdf: 'Arkana-Chips (PDF)', chipsFile: 'arkana-chips',
     speed: 'Bewegung (m pro Zug)', speedLabel: 'Bewegung / Zug',
     level: 'Stufe', levelHint: 'Wird als Sterne auf dem Bogen gezeigt. Leere Sterne können beim Stufenaufstieg mit Bleistift ausgemalt werden.',
     addAttack: '+ Angriff hinzufügen', maxAttacks: 'Die Seite ist voll — kein Platz für einen weiteren Angriff.', atkEffect: 'Effekt (kurz)',
@@ -502,12 +506,16 @@ function renderPreview() {
   const c = cur(), el = $('#sheet');
   if (!c) { el.innerHTML = ''; return; }
   el.style.backgroundImage = `url(${frameCache()})`;
+  el.innerHTML = sheetHTML(c);
+}
+/** Inner HTML of a character sheet (used by the preview and the PDF export). */
+function sheetHTML(c) {
   const L = sheetLayout(c.attacks);
   const rows = c.attacks.map(a => `<tr class="gap"><td colspan="5"></td></tr><tr class="atk${hasEffect(a) ? ' has-eff' : ''}">
-    <td class="ic"${hasEffect(a) ? ' rowspan="2"' : ''}><img alt="" src="${drawIcon(a.type)}"></td><td><b>${esc(a.name)}</b></td><td>${esc(a.range)}</td>
+    <td class="ic"${hasEffect(a) ? ' rowspan="2"' : ''}><img alt="" src="${drawIcon(a.type)}"></td><td><b${a.name.length > 22 ? ' class="small"' : ''}>${esc(a.name)}</b></td><td>${esc(a.range)}</td>
     <td>${esc(a.dmg)} <i>${esc(t('dtypeL')[a.type] || '')}</i></td><td>${esc(attackArcana(a))}</td></tr>
     ${hasEffect(a) ? `<tr class="eff"><td colspan="4">${esc(a.effect)}</td></tr>` : ''}`).join('');
-  el.innerHTML = `
+  return `
     <div class="sh-head">
       <div class="sh-portrait" style="background-image:${c.img ? `url(${c.img})` : 'none'}"></div>
       <div>
@@ -546,6 +554,8 @@ function renderChrome() {
   $('#appTitle').textContent = t('appTitle');
   $('#charsTitle').textContent = t('characters');
   $('#newChar').textContent = t('newChar');
+  $('#pdfAll').textContent = t('pdfAll');
+  $('#chipsPdf').textContent = t('chipsPdf');
   $('#previewTitle').textContent = t('preview');
   $('#themeLabel').textContent = t('theme');
   $('#themeSelect').innerHTML = Object.entries(THEMES).map(([k, v]) => `<option value="${k}"${k === state.theme ? ' selected' : ''}>${esc(t(v.label))}</option>`).join('');
@@ -613,6 +623,13 @@ document.addEventListener('click', async e => {
   const lb = e.target.closest('[data-lang]');
   if (lb) { state.lang = lb.dataset.lang; store.set('dnd-lang', state.lang); renderAll(); }
 });
+$('#pdfAll').addEventListener('click', async e => {
+  const b = e.currentTarget; b.disabled = true;
+  try { await exportPdfAll(p => (b.textContent = `${t('pdfBusy')} ${p}`)); }
+  catch (err) { console.error(err); alert('Export failed: ' + err.message); }
+  finally { b.disabled = false; b.textContent = t('pdfAll'); }
+});
+$('#chipsPdf').addEventListener('click', e => runExport(e.currentTarget, exportArcanaChips));
 $('#newChar').addEventListener('click', () => { addChar(); save(); renderAll(); });
 $('#themeSelect').addEventListener('change', e => { state.theme = e.target.value; store.set('dnd-theme', state.theme); renderAll(); });
 function addChar() { const c = newChar(); state.chars.push(c); state.currentId = c.id; }
@@ -824,6 +841,110 @@ async function exportCards(c, list) {
   const doc = new docx.Document({ creator: 'Simple D&D Sheets', title: nameOf(c), styles: docStyles(th().font), sections });
   const name = list.length === 1 ? `${safeName(nameOf(c))}_${safeName(list[0].name || t('typeL')[list[0].type])}` : `${safeName(nameOf(c))}_cards`;
   await download(doc, name);
+}
+
+/* ---------- PDF export: every sheet + its ability cards, 2 cards per A4 page ---------- */
+let _cardFrame = {};
+const cardFrame = () => _cardFrame[state.theme] ??= drawFrame(210, 148, { radius: 8, inset: 4, orn: 6 });
+
+/** HTML version of an ability card (A5 landscape), same layout as the Word card. */
+function cardHTML(a) {
+  const typeName = t('typeL')[a.type], hasDmg = a.type !== 'passive';
+  const cost = Math.min(3, Math.max(1, Number(a.cost) || 1));
+  const line = (label, html) => html ? `<div><b>${esc(label)}:</b> ${html}</div>` : '';
+  const dmg = a.dmg ? `<img class="cd-di" alt="" src="${drawIcon(a.dmgType)}"> <b>${esc(a.dmg)}</b>
+    <i style="color:${(DTYPES[a.dmgType] || DTYPES.bludgeoning).color}">${esc(t('dtypeL')[a.dmgType] || '')}</i>` : '';
+  let det = '';
+  if (a.type === 'passive') det = line(t('trigger'), esc(a.trigger)) + line(t('uses'), esc(usesText(a)));
+  if (a.type === 'attack') det = line(t('stat'), esc(t('statL')[a.stat])) + line(t('range'), esc(a.range)) + line(t('damage'), dmg) + line(t('uses'), esc(usesText(a)));
+  if (a.type === 'spell') {
+    const m = String(a.mult || '').replace(/^\+\s*/, '');
+    det = line(t('cost'), `${ARCANA.repeat(cost)} (${cost})`) + line(t('damage'), dmg) + line(t('range'), esc(a.range)) +
+      line(t('duration'), esc(a.duration)) + line(t('save'), a.save ? esc(t('statL')[a.save]) : '') +
+      (m ? line(t('mult'), `+${esc(m)} ${esc(t('perArcana'))} ${ARCANA}`) : '') +
+      `<div class="cd-strip">${esc(scalingText(a.cost, a.dmg, a.mult))}</div>`;
+  }
+  return `<div class="card" style="background-image:url(${cardFrame()})">
+    <div class="cd-top">
+      <div class="cd-badge">${esc(typeName.toUpperCase())}</div>
+      <div class="cd-name">${hasDmg ? `<img alt="" src="${drawIcon(a.dmgType)}">` : ''}<span>${esc(a.name || typeName)}</span></div>
+      <div class="cd-corner">${a.type === 'spell' ? `<span class="cd-arc">${ARCANA.repeat(cost)}</span>` : `<i>${esc(usesText(a))}</i>`}</div>
+    </div>
+    <div class="cd-body">
+      <div class="cd-pic${a.img ? '' : ' empty'}"${a.img ? ` style="background-image:url(${a.img})"` : ''}>${a.img ? '' : `<i>${esc(typeName)}</i>`}</div>
+      <div class="cd-det">${det}<div class="cd-eff">${esc(a.effect)}</div></div>
+    </div>
+    <div class="cd-flavor">${esc(a.flavor)}</div>
+  </div>`;
+}
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement('script'); s.src = src; s.onload = res;
+    s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s);
+  });
+}
+const PDF_LIBS = ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'];
+
+async function exportPdfAll(progress = () => {}) {
+  for (const src of PDF_LIBS) await loadScript(src);
+  const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+  const stage = document.createElement('div'); stage.className = 'pdf-stage'; document.body.appendChild(stage);
+  const shot = async html => {
+    stage.innerHTML = html;
+    // wait for images, but never hang (decode() can stall while the tab is in the background)
+    const ready = i => i.complete ? Promise.resolve() : new Promise(r => { i.onload = i.onerror = r; });
+    await Promise.race([Promise.all([...stage.querySelectorAll('img')].map(ready)), new Promise(r => setTimeout(r, 3000))]);
+    const cv = await html2canvas(stage.firstElementChild, { scale: 2.5, backgroundColor: '#ffffff', logging: false });
+    return cv.toDataURL('image/jpeg', 0.9);
+  };
+  const total = state.chars.reduce((n, c) => n + 1 + Math.ceil(c.abilities.length / 2), 0);
+  let pages = 0;
+  const newPage = () => { if (pages++) pdf.addPage('a4', 'portrait'); progress(`${pages}/${total}`); };
+  try {
+    for (const c of state.chars) {
+      newPage();
+      pdf.addImage(await shot(`<div class="sheet pdf-sheet" style="background-image:url(${frameCache()})">${sheetHTML(c)}</div>`), 'JPEG', 0, 0, 210, 297);
+      for (let i = 0; i < c.abilities.length; i += 2) {
+        newPage();
+        const pair = c.abilities.slice(i, i + 2);
+        for (let k = 0; k < pair.length; k++) pdf.addImage(await shot(cardHTML(pair[k])), 'JPEG', 0, k ? 149 : 0, 210, 148);
+        if (pair.length === 2) { // cut line between the two cards
+          pdf.setDrawColor(170); pdf.setLineWidth(0.2); pdf.setLineDashPattern([2, 2], 0); pdf.line(4, 148.5, 206, 148.5);
+        }
+      }
+    }
+    const blob = pdf.output('blob');
+    window.__lastPdf = blob; // handy for testing
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${t('pdfFile')}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } finally { stage.remove(); }
+}
+
+/* ---------- Arcana chips: one A4 page of square blue tokens that fit on the sheet's arcana circles ---------- */
+async function exportArcanaChips() {
+  await loadScript(PDF_LIBS[0]);
+  const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+  const S = 7.5, M = 8; // chip side (circles are 7.6 mm), page margin for the printer
+  const cols = Math.floor((210 - 2 * M) / S), rows = Math.floor((297 - 2 * M) / S);
+  const x0 = (210 - cols * S) / 2, y0 = (297 - rows * S) / 2, r = S * 0.28;
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+    const x = x0 + i * S, y = y0 + j * S, cx = x + S / 2, cy = y + S / 2;
+    pdf.setFillColor(36, 84, 196); pdf.rect(x, y, S, S, 'F');
+    pdf.setFillColor(92, 140, 240); pdf.circle(cx, cy, S * 0.4, 'F');
+    pdf.setFillColor(255, 255, 255); // white diamond ◆
+    pdf.lines([[r, r], [-r, r], [-r, -r], [r, -r]], cx, cy - r, [1, 1], 'F', true);
+  }
+  // cut grid
+  pdf.setDrawColor(255, 255, 255); pdf.setLineWidth(0.25);
+  for (let i = 0; i <= cols; i++) pdf.line(x0 + i * S, y0, x0 + i * S, y0 + rows * S);
+  for (let j = 0; j <= rows; j++) pdf.line(x0, y0 + j * S, x0 + cols * S, y0 + j * S);
+  const blob = pdf.output('blob');
+  window.__lastPdf = blob; // handy for testing
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${t('chipsFile')}.pdf`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 /* ---------- boot ---------- */
